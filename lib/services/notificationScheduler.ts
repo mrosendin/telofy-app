@@ -192,13 +192,34 @@ export async function scheduleMorningBriefing(
   }
 }
 
+// Track if we've scheduled the morning briefing this session
+let morningBriefingScheduled = false;
+
 /**
- * Schedule daily recurring morning briefing
+ * Schedule daily recurring morning briefing (only once)
  */
 export async function scheduleRecurringMorningBriefing(
   briefingHour: number = 7,
   briefingMinute: number = 0
 ): Promise<string | null> {
+  // First, check if there's already a morning briefing scheduled
+  const existing = await Notifications.getAllScheduledNotificationsAsync();
+  const existingMorning = existing.filter(
+    (n) => n.content.data?.type === 'morning_briefing'
+  );
+
+  // If we already have one, don't schedule another
+  if (existingMorning.length > 0) {
+    console.log(`[NotificationScheduler] Morning briefing already scheduled (${existingMorning.length} found), skipping`);
+    return existingMorning[0].identifier;
+  }
+
+  // Prevent duplicate scheduling in same session
+  if (morningBriefingScheduled) {
+    console.log('[NotificationScheduler] Morning briefing already scheduled this session, skipping');
+    return null;
+  }
+
   try {
     const notificationId = await Notifications.scheduleNotificationAsync({
       content: {
@@ -214,6 +235,7 @@ export async function scheduleRecurringMorningBriefing(
       },
     });
 
+    morningBriefingScheduled = true;
     console.log(`[NotificationScheduler] Scheduled recurring morning briefing at ${briefingHour}:${briefingMinute.toString().padStart(2, '0')}`);
     return notificationId;
   } catch (error) {
@@ -228,6 +250,55 @@ export async function scheduleRecurringMorningBriefing(
 export async function getScheduledNotificationCount(): Promise<number> {
   const notifications = await Notifications.getAllScheduledNotificationsAsync();
   return notifications.length;
+}
+
+/**
+ * Clean up duplicate notifications
+ * Keeps only one of each type per task
+ */
+export async function cleanupDuplicateNotifications(): Promise<number> {
+  const notifications = await Notifications.getAllScheduledNotificationsAsync();
+  
+  // Group by task ID and type
+  const seen = new Map<string, string>(); // key: "taskId:type" -> first notification ID
+  const toCancel: string[] = [];
+
+  for (const n of notifications) {
+    const taskId = n.content.data?.taskId as string | undefined;
+    const type = n.content.data?.type as string | undefined;
+    
+    // For morning briefing, only keep one
+    if (type === 'morning_briefing') {
+      const key = 'morning_briefing';
+      if (seen.has(key)) {
+        toCancel.push(n.identifier);
+      } else {
+        seen.set(key, n.identifier);
+      }
+      continue;
+    }
+
+    // For task notifications, only keep one per task+type
+    if (taskId && type) {
+      const key = `${taskId}:${type}`;
+      if (seen.has(key)) {
+        toCancel.push(n.identifier);
+      } else {
+        seen.set(key, n.identifier);
+      }
+    }
+  }
+
+  // Cancel duplicates
+  for (const id of toCancel) {
+    await Notifications.cancelScheduledNotificationAsync(id);
+  }
+
+  if (toCancel.length > 0) {
+    console.log(`[NotificationScheduler] Cleaned up ${toCancel.length} duplicate notifications`);
+  }
+
+  return toCancel.length;
 }
 
 /**

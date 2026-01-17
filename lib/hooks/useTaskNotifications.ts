@@ -5,12 +5,12 @@
 
 import { useEffect, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
-import { useTaskStore, useSettingsStore, useObjectiveStore } from '../store';
+import { useTaskStore, useSettingsStore } from '../store';
 import {
   scheduleTaskNotifications,
   cancelTaskNotifications,
   scheduleRecurringMorningBriefing,
-  cancelAllScheduledNotifications,
+  cleanupDuplicateNotifications,
   listScheduledNotifications,
 } from '../services/notificationScheduler';
 import { isToday } from 'date-fns';
@@ -21,19 +21,40 @@ import { isToday } from 'date-fns';
  */
 export function useTaskNotifications() {
   const tasks = useTaskStore((s) => s.tasks);
-  const objectives = useObjectiveStore((s) => s.objectives);
   const notificationPreference = useSettingsStore((s) => s.notificationPreference);
   const appState = useRef(AppState.currentState);
   const lastScheduledRef = useRef<string>('');
+  const initializedRef = useRef(false);
 
-  // Schedule notifications when tasks or preferences change
+  // On mount: cleanup duplicates and setup morning briefing
+  useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+
+    const initialize = async () => {
+      // First, clean up any duplicate notifications from previous sessions
+      await cleanupDuplicateNotifications();
+
+      // Schedule morning briefing (will skip if already exists)
+      if (notificationPreference.enabled) {
+        await scheduleRecurringMorningBriefing(7, 0);
+      }
+
+      // Debug: list what's scheduled
+      await listScheduledNotifications();
+    };
+
+    initialize();
+  }, []);
+
+  // Schedule notifications when tasks change
   useEffect(() => {
     const todaysTasks = tasks.filter(
       (t) => isToday(new Date(t.scheduledAt)) && t.status === 'pending'
     );
 
     // Create a signature to detect actual changes
-    const signature = todaysTasks.map((t) => `${t.id}:${t.scheduledAt}`).join(',');
+    const signature = todaysTasks.map((t) => `${t.id}:${t.status}:${t.scheduledAt}`).join(',');
     
     // Skip if nothing changed
     if (signature === lastScheduledRef.current) {
@@ -44,11 +65,8 @@ export function useTaskNotifications() {
 
     const scheduleAll = async () => {
       if (notificationPreference.enabled && todaysTasks.length > 0) {
-        console.log('[useTaskNotifications] Scheduling notifications for tasks');
+        console.log(`[useTaskNotifications] Scheduling notifications for ${todaysTasks.length} tasks`);
         await scheduleTaskNotifications(todaysTasks, notificationPreference);
-        
-        // Debug: list scheduled notifications
-        await listScheduledNotifications();
       }
     };
 
@@ -66,20 +84,13 @@ export function useTaskNotifications() {
     }
   }, [tasks]);
 
-  // Handle app state changes (foreground/background)
+  // Handle app state changes - just cleanup, don't reschedule
   useEffect(() => {
     const subscription = AppState.addEventListener('change', async (nextAppState: AppStateStatus) => {
-      // When app comes to foreground, refresh notifications
       if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        console.log('[useTaskNotifications] App came to foreground, refreshing notifications');
-        
-        const todaysTasks = tasks.filter(
-          (t) => isToday(new Date(t.scheduledAt)) && t.status === 'pending'
-        );
-        
-        if (notificationPreference.enabled && todaysTasks.length > 0) {
-          await scheduleTaskNotifications(todaysTasks, notificationPreference);
-        }
+        console.log('[useTaskNotifications] App came to foreground');
+        // Only cleanup duplicates, don't reschedule (they're already scheduled)
+        await cleanupDuplicateNotifications();
       }
 
       appState.current = nextAppState;
@@ -88,14 +99,7 @@ export function useTaskNotifications() {
     return () => {
       subscription.remove();
     };
-  }, [tasks, notificationPreference]);
-
-  // Setup morning briefing on mount
-  useEffect(() => {
-    if (notificationPreference.enabled) {
-      scheduleRecurringMorningBriefing(7, 0); // 7:00 AM daily
-    }
-  }, [notificationPreference.enabled]);
+  }, []);
 }
 
 export default useTaskNotifications;

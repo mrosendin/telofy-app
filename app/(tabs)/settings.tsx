@@ -372,6 +372,26 @@ export default function SettingsScreen() {
               Alert.alert('Scheduled Notifications', `You have ${count} notification${count !== 1 ? 's' : ''} scheduled.`);
             }}
           />
+          <SettingRow
+            icon="refresh"
+            label="Reset All Notifications"
+            onPress={() => {
+              Alert.alert(
+                'Reset Notifications',
+                'This will cancel all scheduled notifications and reschedule them fresh. Use this if you\'re getting duplicate notifications.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Reset',
+                    onPress: async () => {
+                      await Notifications.cancelAllScheduledNotificationsAsync();
+                      Alert.alert('Notifications Reset', 'All notifications have been cleared. They will be rescheduled automatically.');
+                    },
+                  },
+                ]
+              );
+            }}
+          />
         </View>
 
         {/* Data & Privacy */}
