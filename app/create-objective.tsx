@@ -41,9 +41,28 @@ export default function CreateObjectiveScreen() {
       const result = await analyzeObjective(userInput);
       setAnalysis(result);
       setStep('review');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Analysis failed:', err);
-      setError('Failed to analyze objective. Please try again.');
+      
+      // Check for quota/billing issues (also returns 429)
+      const isQuotaError = 
+        err?.error?.code === 'insufficient_quota' ||
+        err?.message?.toLowerCase().includes('quota') ||
+        err?.message?.toLowerCase().includes('billing');
+      
+      // Check for rate limit error
+      const isRateLimit = 
+        err?.status === 429 || 
+        err?.message?.includes('429') ||
+        err?.message?.toLowerCase().includes('rate limit');
+      
+      if (isQuotaError) {
+        setError('API quota exceeded. Please check your OpenAI billing settings.');
+      } else if (isRateLimit) {
+        setError('Service temporarily unavailable. Please wait a moment and try again.');
+      } else {
+        setError('Failed to analyze objective. Please try again.');
+      }
       setStep('input');
     }
   };

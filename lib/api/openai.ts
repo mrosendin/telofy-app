@@ -3,20 +3,88 @@
  */
 
 import OpenAI from 'openai';
-import type { 
-  Objective, 
-  Task, 
-  AIContext, 
-  AITaskPlan, 
+import type {
+  AIContext,
   AIObjectiveAnalysis,
-  ObjectiveCategory,
-  CATEGORY_CONFIG,
+  AITaskPlan,
+  Objective,
+  Task
 } from '../types';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY,
 });
+
+/**
+ * Custom error for rate limiting
+ */
+export class RateLimitError extends Error {
+  retryAfter: number;
+  
+  constructor(message: string, retryAfter: number) {
+    super(message);
+    this.name = 'RateLimitError';
+    this.retryAfter = retryAfter;
+  }
+}
+
+/**
+ * Delay helper
+ */
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Execute an OpenAI API call with retry logic for rate limits
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  options: { maxRetries?: number; baseDelay?: number } = {}
+): Promise<T> {
+  const { maxRetries = 3, baseDelay = 1000 } = options;
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      lastError = error;
+
+      // Check for quota/billing errors - don't retry these
+      const isQuotaError = 
+        error?.error?.code === 'insufficient_quota' ||
+        error?.message?.toLowerCase().includes('quota') ||
+        error?.message?.toLowerCase().includes('billing');
+
+      if (isQuotaError) {
+        throw error;
+      }
+
+      // Check if it's a rate limit error (429)
+      const isRateLimit = 
+        error?.status === 429 || 
+        error?.error?.code === 'rate_limit_exceeded' ||
+        error?.message?.includes('429') ||
+        error?.message?.toLowerCase().includes('rate limit');
+
+      if (!isRateLimit || attempt === maxRetries) {
+        // Not a rate limit error or we've exhausted retries
+        throw error;
+      }
+
+      // Parse retry-after header if available, otherwise use exponential backoff
+      const retryAfter = error?.headers?.['retry-after'];
+      const waitTime = retryAfter 
+        ? parseInt(retryAfter, 10) * 1000 
+        : baseDelay * Math.pow(2, attempt);
+
+      console.log(`Rate limited. Retrying in ${waitTime}ms (attempt ${attempt + 1}/${maxRetries})`);
+      await delay(waitTime);
+    }
+  }
+
+  throw lastError;
+}
 
 // System prompt for Telofy's AI personality
 const SYSTEM_PROMPT = `You are Telofy, an AI execution system focused on turning user intentions into completed outcomes. Your role is to:
@@ -100,15 +168,17 @@ Respond in JSON:
   "clarifyingQuestions": ["Optional questions if input is vague"]
 }`;
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o',
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: prompt },
-    ],
-    response_format: { type: 'json_object' },
-    temperature: 0.7,
-  });
+  const response = await withRetry(() =>
+    openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: prompt },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.7,
+    })
+  );
 
   const content = response.choices[0]?.message?.content;
   if (!content) {
@@ -139,15 +209,17 @@ ${JSON.stringify(previousAnalysis, null, 2)}
 
 Provide an updated analysis in the same JSON format, but with no clarifyingQuestions this time.`;
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o',
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: prompt },
-    ],
-    response_format: { type: 'json_object' },
-    temperature: 0.7,
-  });
+  const response = await withRetry(() =>
+    openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: prompt },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.7,
+    })
+  );
 
   const content = response.choices[0]?.message?.content;
   if (!content) {
@@ -215,15 +287,17 @@ Respond in JSON:
   "adjustments": "Any notes about adjustments made"
 }`;
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o',
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: prompt },
-    ],
-    response_format: { type: 'json_object' },
-    temperature: 0.7,
-  });
+  const response = await withRetry(() =>
+    openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: prompt },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.7,
+    })
+  );
 
   const content = response.choices[0]?.message?.content;
   if (!content) {
@@ -263,15 +337,17 @@ Provide a brief, actionable response (max 100 words):
 
 Sound like a system reporting status, not a coach lecturing.`;
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o',
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: prompt },
-    ],
-    temperature: 0.7,
-    max_tokens: 200,
-  });
+  const response = await withRetry(() =>
+    openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.7,
+      max_tokens: 200,
+    })
+  );
 
   return response.choices[0]?.message?.content ?? 'Unable to analyze deviation.';
 }
@@ -305,15 +381,17 @@ ${skippedTasks.map((t) => `- ${t.title}${t.skippedReason ? ` (${t.skippedReason}
 
 Be factual. Note progress. If there are concerns, mention them briefly. Sound like a system status report.`;
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o',
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: prompt },
-    ],
-    temperature: 0.7,
-    max_tokens: 100,
-  });
+  const response = await withRetry(() =>
+    openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.7,
+      max_tokens: 100,
+    })
+  );
 
   return response.choices[0]?.message?.content ?? 'Daily summary unavailable.';
 }
@@ -334,15 +412,17 @@ Context: ${task.whyItMatters || 'Part of their daily execution'}
 
 Write a brief (max 30 words) intervention. Not motivational fluff - remind them factually why this matters and what's at stake. Be direct but not harsh.`;
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o',
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: prompt },
-    ],
-    temperature: 0.7,
-    max_tokens: 60,
-  });
+  const response = await withRetry(() =>
+    openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.7,
+      max_tokens: 60,
+    })
+  );
 
   return response.choices[0]?.message?.content ?? 'This task supports your objective.';
 }
