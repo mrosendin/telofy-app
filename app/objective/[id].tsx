@@ -330,15 +330,7 @@ export default function ObjectiveDetailScreen() {
             >
               <View className="flex-1">
                 <Text className="text-telofy-text font-medium">{metric.name}</Text>
-                <View className="flex-row items-baseline mt-1">
-                  <Text className="text-telofy-text text-2xl font-bold">
-                    {metric.current ?? '—'}
-                  </Text>
-                  <Text className="text-telofy-text-secondary ml-1">{metric.unit}</Text>
-                  {metric.target && (
-                    <Text className="text-telofy-text-secondary ml-2">/ {metric.target}</Text>
-                  )}
-                </View>
+                <View className="flex-row items-baseline mt-1"><Text className="text-telofy-text text-2xl font-bold">{metric.current ?? '—'}</Text><Text className="text-telofy-text-secondary ml-1">{metric.unit}</Text>{metric.target && (<Text className="text-telofy-text-secondary ml-2">/ {metric.target}</Text>)}</View>
                 <Text className="text-telofy-text-secondary text-xs mt-1">
                   {metric.history.length} entries
                 </Text>
