@@ -32,15 +32,45 @@ class TelofyApiClient {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
 
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      ...options,
-      headers,
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${API_URL}${endpoint}`, {
+        ...options,
+        headers,
+      });
+    } catch (error) {
+      // Network error - server might be down or unreachable
+      throw new Error('Unable to connect to server. Please check your internet connection.');
+    }
 
-    const data = await response.json();
+    // Try to parse JSON response
+    let data: any;
+    const contentType = response.headers.get('content-type');
+    
+    if (contentType && contentType.includes('application/json')) {
+      try {
+        const text = await response.text();
+        data = text ? JSON.parse(text) : {};
+      } catch (parseError) {
+        throw new Error('Server returned an invalid response. Please try again.');
+      }
+    } else {
+      // Non-JSON response (might be HTML error page)
+      const text = await response.text();
+      if (!response.ok) {
+        throw new Error(text || `Server error: ${response.status}`);
+      }
+      data = { message: text };
+    }
 
     if (!response.ok) {
-      throw new Error((data as ApiError).error || 'Request failed');
+      // Extract error message from various response formats
+      const errorMessage = 
+        data?.error || 
+        data?.message || 
+        data?.errors?.[0]?.message ||
+        `Request failed with status ${response.status}`;
+      throw new Error(errorMessage);
     }
 
     return data as T;
