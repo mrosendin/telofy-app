@@ -17,6 +17,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "ai.telofy.app",
+      "associatedDomains": [
+        "applinks:telofy.ai",
+        "webcredentials:telofy.ai"
+      ],
       "infoPlist": {
         "UIBackgroundModes": [
           "remote-notification"
