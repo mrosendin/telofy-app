@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -26,8 +26,18 @@ export default function ObjectiveDetailScreen() {
   const addMetricDataPoint = useObjectiveStore((s) => s.addMetricDataPoint);
   const completeRitual = useObjectiveStore((s) => s.completeRitual);
   const updateObjective = useObjectiveStore((s) => s.updateObjective);
+  const tasks = useTaskStore((s) => s.tasks);
   const addTasks = useTaskStore((s) => s.addTasks);
-  const todaysTasks = useTaskStore((s) => s.getTodaysTasks().filter((t) => t.objectiveId === id));
+  
+  // Memoize today's tasks to avoid infinite loop
+  const todaysTasks = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    return tasks.filter(
+      (t) =>
+        t.objectiveId === id &&
+        new Date(t.scheduledAt).toISOString().split('T')[0] === today
+    );
+  }, [tasks, id]);
 
   const [modalType, setModalType] = useState<ModalType>(null);
   const [selectedMetric, setSelectedMetric] = useState<Metric | null>(null);

@@ -1,7 +1,7 @@
 import { useObjectiveStore, useTaskStore } from '@/lib/store';
 import { CATEGORY_CONFIG, type Task } from '@/lib/types';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -156,7 +156,6 @@ function EmptyState() {
 
 export default function TasksScreen() {
   const tasks = useTaskStore((s) => s.tasks);
-  const todaysTasks = useTaskStore((s) => s.getTodaysTasks());
   const completeTask = useTaskStore((s) => s.completeTask);
   const skipTask = useTaskStore((s) => s.skipTask);
   const startTask = useTaskStore((s) => s.startTask);
@@ -165,14 +164,22 @@ export default function TasksScreen() {
   const [taskToSkip, setTaskToSkip] = useState<Task | null>(null);
   const [skipReason, setSkipReason] = useState('');
 
+  // Memoize today's tasks to avoid infinite loop
+  const todaysTasks = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    return tasks.filter(
+      (t) => new Date(t.scheduledAt).toISOString().split('T')[0] === today
+    );
+  }, [tasks]);
+
   // Sort tasks: in_progress first, then pending, then by time, completed/skipped last
-  const sortedTasks = [...todaysTasks].sort((a, b) => {
+  const sortedTasks = useMemo(() => [...todaysTasks].sort((a, b) => {
     const statusOrder = { in_progress: 0, pending: 1, overdue: 2, completed: 3, skipped: 4 };
     const aOrder = statusOrder[a.status];
     const bOrder = statusOrder[b.status];
     if (aOrder !== bOrder) return aOrder - bOrder;
     return new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime();
-  });
+  }), [todaysTasks]);
 
   const pendingCount = todaysTasks.filter((t) => t.status === 'pending' || t.status === 'in_progress').length;
   const completedCount = todaysTasks.filter((t) => t.status === 'completed').length;

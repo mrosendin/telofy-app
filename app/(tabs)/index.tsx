@@ -1,13 +1,34 @@
+import { useMemo } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useObjectiveStore, useTaskStore } from '@/lib/store';
-import { CATEGORY_CONFIG, type Objective } from '@/lib/types';
+import { CATEGORY_CONFIG, type Objective, type Task } from '@/lib/types';
 
-function ObjectiveStatusCard({ objective }: { objective: Objective }) {
+// Helper to get today's date string
+const getTodayString = () => new Date().toISOString().split('T')[0];
+
+// Helper to filter today's tasks
+const filterTodaysTasks = (tasks: Task[]) => {
+  const today = getTodayString();
+  return tasks.filter(
+    (t) => new Date(t.scheduledAt).toISOString().split('T')[0] === today
+  );
+};
+
+function ObjectiveStatusCard({ objective, allTasks }: { objective: Objective; allTasks: Task[] }) {
   const categoryConfig = CATEGORY_CONFIG[objective.category];
-  const tasks = useTaskStore((s) => s.getTodaysTasks().filter((t) => t.objectiveId === objective.id));
+  
+  // Filter tasks for this objective
+  const tasks = useMemo(() => {
+    const today = getTodayString();
+    return allTasks.filter(
+      (t) =>
+        t.objectiveId === objective.id &&
+        new Date(t.scheduledAt).toISOString().split('T')[0] === today
+    );
+  }, [allTasks, objective.id]);
   
   const completedTasks = tasks.filter((t) => t.status === 'completed').length;
   const totalTasks = tasks.length;
@@ -126,12 +147,12 @@ function EmptyState() {
   );
 }
 
-function NextTaskCard() {
-  const inProgressTask = useTaskStore((s) => s.getInProgressTask());
-  const todaysTasks = useTaskStore((s) => s.getTodaysTasks());
+function NextTaskCard({ todaysTasks }: { todaysTasks: Task[] }) {
+  const objectives = useObjectiveStore((s) => s.objectives);
+
+  const inProgressTask = todaysTasks.find((t) => t.status === 'in_progress');
   const pendingTasks = todaysTasks.filter((t) => t.status === 'pending');
   const nextTask = inProgressTask ?? pendingTasks[0];
-  const objectives = useObjectiveStore((s) => s.objectives);
 
   if (!nextTask) {
     if (todaysTasks.length === 0) return null;
@@ -185,8 +206,11 @@ function NextTaskCard() {
 
 export default function StatusScreen() {
   const objectives = useObjectiveStore((s) => s.objectives);
-  const activeObjectives = objectives.filter((o) => !o.isPaused);
-  const todaysTasks = useTaskStore((s) => s.getTodaysTasks());
+  const tasks = useTaskStore((s) => s.tasks);
+  
+  // Memoize today's tasks to avoid recalculating on every render
+  const todaysTasks = useMemo(() => filterTodaysTasks(tasks), [tasks]);
+  const activeObjectives = useMemo(() => objectives.filter((o) => !o.isPaused), [objectives]);
   
   const completedTasks = todaysTasks.filter((t) => t.status === 'completed').length;
   const totalTasks = todaysTasks.length;
@@ -225,7 +249,7 @@ export default function StatusScreen() {
         </View>
 
         {/* Next Task */}
-        <NextTaskCard />
+        <NextTaskCard todaysTasks={todaysTasks} />
 
         {/* Objectives Status */}
         <View className="flex-row items-center justify-between mb-4">
@@ -241,7 +265,7 @@ export default function StatusScreen() {
         </View>
         
         {activeObjectives.map((obj) => (
-          <ObjectiveStatusCard key={obj.id} objective={obj} />
+          <ObjectiveStatusCard key={obj.id} objective={obj} allTasks={tasks} />
         ))}
 
         <View className="h-8" />
