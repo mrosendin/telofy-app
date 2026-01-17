@@ -81,6 +81,8 @@ export default function SignInScreen() {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
+                textContentType="emailAddress"
+                autoComplete="email"
               />
             </View>
 
@@ -96,6 +98,8 @@ export default function SignInScreen() {
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
+                  textContentType="password"
+                  autoComplete="password"
                 />
                 <Pressable
                   className="absolute right-4 top-4"

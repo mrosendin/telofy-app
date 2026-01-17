@@ -98,6 +98,8 @@ export default function SignUpScreen() {
                   value={name}
                   onChangeText={setName}
                   autoCapitalize="words"
+                  textContentType="name"
+                  autoComplete="name"
                 />
               </View>
 
@@ -113,6 +115,8 @@ export default function SignUpScreen() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
+                  textContentType="emailAddress"
+                  autoComplete="email"
                 />
               </View>
 
@@ -128,6 +132,8 @@ export default function SignUpScreen() {
                     onChangeText={setPassword}
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
+                    textContentType="newPassword"
+                    autoComplete="password-new"
                   />
                   <Pressable
                     className="absolute right-4 top-4"
@@ -155,6 +161,8 @@ export default function SignUpScreen() {
                   onChangeText={setConfirmPassword}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
+                  textContentType="newPassword"
+                  autoComplete="password-new"
                 />
               </View>
 
