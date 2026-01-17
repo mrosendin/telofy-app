@@ -35,6 +35,7 @@ interface AuthState {
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   signOut: () => void;
+  clearError: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -78,6 +79,11 @@ export const useAuthStore = create<AuthState>()(
           state.error = null;
           api.setToken(null);
         }),
+
+      clearError: () =>
+        set((state) => {
+          state.error = null;
+        }),
     })),
     {
       name: 'telofy-auth',
@@ -107,6 +113,7 @@ export function useAuth() {
     setLoading,
     setError,
     signOut: storeSignOut,
+    clearError,
   } = useAuthStore();
 
   // Restore token to API client on mount
@@ -179,6 +186,7 @@ export function useAuth() {
     signUp,
     signIn,
     signOut,
+    clearError,
   };
 }
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,12 @@ export default function SignInScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const { signIn, isLoading, error } = useAuth();
+  const { signIn, isLoading, error, clearError } = useAuth();
+
+  // Clear any previous errors when screen mounts
+  useEffect(() => {
+    clearError();
+  }, [clearError]);
 
   const handleSignIn = async () => {
     if (!email.trim() || !password) {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -21,7 +21,12 @@ export default function SignUpScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const { signUp, isLoading, error } = useAuth();
+  const { signUp, isLoading, error, clearError } = useAuth();
+
+  // Clear any previous errors when screen mounts
+  useEffect(() => {
+    clearError();
+  }, [clearError]);
 
   const handleSignUp = async () => {
     if (!name.trim()) {
