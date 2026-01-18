@@ -349,7 +349,7 @@ export default function SettingsScreen() {
               try {
                 await Notifications.scheduleNotificationAsync({
                   content: {
-                    title: '🎯 Goalmax Test',
+                    title: '🎯 goalmax Test',
                     body: 'Notifications are working correctly!',
                     sound: true,
                   },
@@ -436,7 +436,7 @@ export default function SettingsScreen() {
 
         {/* Footer */}
         <View className="items-center pb-8">
-          <Text className="text-telofy-muted text-sm font-semibold">GOALMAX</Text>
+          <Text className="text-telofy-muted text-sm font-semibold">goalmax</Text>
           <Text className="text-telofy-muted text-xs mt-1">
             Turn intention into execution.
           </Text>
